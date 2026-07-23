@@ -6,54 +6,25 @@ import os
 from config import DATA_DIR
 
 def load_and_prepare_data(dataset_name, model_name, max_length=512, max_target=128):
-    """Charge et prépare les données avec OrangeSum pour le français"""
+    """Charge et prépare les données"""
     
     print(f"📚 Chargement du dataset: {dataset_name}")
     
-    if dataset_name == 'orange_sum':
+    if dataset_name == 'samsum':
         try:
-            print("📥 Chargement de OrangeSum via GEM...")
-            dataset = load_dataset('GEM/OrangeSum')
-            text_field = 'text'
-            summary_field = 'summary'
-            print("✅ OrangeSum chargé avec succès")
-        except Exception as e:
-            print(f"❌ Erreur: {e}")
-            print("📥 Création d'un dataset de démonstration...")
-            from datasets import Dataset
-            import pandas as pd
-            data = {
-                'text': [
-                    "Le président français a annoncé un nouveau plan de relance économique de 100 milliards d'euros.",
-                    "La France investit massivement dans la transition écologique et le numérique."
-                ],
-                'summary': [
-                    "Plan de relance économique de 100 milliards d'euros.",
-                    "Investissement dans la transition écologique et le numérique."
-                ]
-            }
-            df = pd.DataFrame(data)
-            dataset = Dataset.from_pandas(df)
-            text_field = 'text'
-            summary_field = 'summary'
-            print("✅ Dataset de démonstration créé")
-    
-    elif dataset_name == 'samsum':
-        try:
-            print("📥 Chargement de SAMSum via knkarthick/samsum...")
+            print("📥 Chargement de SAMSum...")
             dataset = load_dataset("knkarthick/samsum")
             text_field = 'dialogue'
             summary_field = 'summary'
             print("✅ SAMSum chargé avec succès")
         except Exception as e:
             print(f"❌ Erreur: {e}")
-            print("📥 Création d'un dataset de démonstration...")
             from datasets import Dataset
             import pandas as pd
             data = {
                 'dialogue': [
                     "Amanda: I can't come to the meeting tomorrow.\nJohn: That's okay. We can reschedule.\nAmanda: Thursday works for me.\nJohn: How about 2 PM?\nAmanda: Perfect.",
-                    "Sarah: Did you finish the report?\nMike: Almost, I need one more day.\nSarah: Okay, by Friday.\nMike: Will do!"
+                    "Sarah: Did you finish the report?\nMike: Almost, I need one more day."
                 ],
                 'summary': [
                     "Amanda and John reschedule their meeting to Thursday at 2 PM.",
@@ -65,6 +36,49 @@ def load_and_prepare_data(dataset_name, model_name, max_length=512, max_target=1
             text_field = 'dialogue'
             summary_field = 'summary'
             print("✅ Dataset de démonstration créé")
+    
+    elif dataset_name == 'orange_sum':
+        try:
+            print("📥 Tentative avec GEM/OrangeSum...")
+            dataset = load_dataset("GEM/OrangeSum")
+            text_field = 'text'
+            summary_field = 'summary'
+            print("✅ OrangeSum chargé via GEM")
+        except Exception as e:
+            print(f"❌ Erreur GEM: {e}")
+            try:
+                print("📥 Tentative avec orange_sum...")
+                dataset = load_dataset("orange_sum", "abstract")
+                text_field = 'text'
+                summary_field = 'summary'
+                print("✅ OrangeSum chargé")
+            except Exception as e2:
+                print(f"❌ Erreur: {e2}")
+                print("📥 Utilisation de MLSUM...")
+                try:
+                    dataset = load_dataset("mlsum", "fr")
+                    text_field = 'text'
+                    summary_field = 'summary'
+                    print("✅ MLSUM chargé")
+                except Exception as e3:
+                    print(f"❌ Erreur MLSUM: {e3}")
+                    from datasets import Dataset
+                    import pandas as pd
+                    data = {
+                        'text': [
+                            "Le président français a annoncé un nouveau plan de relance économique de 100 milliards d'euros.",
+                            "La France investit massivement dans la transition écologique."
+                        ],
+                        'summary': [
+                            "Plan de relance économique de 100 milliards d'euros.",
+                            "Investissement dans la transition écologique."
+                        ]
+                    }
+                    df = pd.DataFrame(data)
+                    dataset = Dataset.from_pandas(df)
+                    text_field = 'text'
+                    summary_field = 'summary'
+                    print("✅ Dataset de démonstration créé")
     
     else:
         raise ValueError(f"Dataset {dataset_name} non supporté")

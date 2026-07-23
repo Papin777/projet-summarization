@@ -5,19 +5,24 @@ from transformers import (
     Seq2SeqTrainer,
     EarlyStoppingCallback
 )
-from peft import LoraConfig, get_peft_model, TaskType
 import os
 import argparse
 from config import MODELS, DEVICE, MODELS_DIR
 from utils import load_and_prepare_data
 
-def train_model(language='english', use_lora=True):
-    """Entraîne un modèle"""
+def train_model(language='english', use_lora=False):
+    """Entraîne un modèle sans LoRA"""
     
     config = MODELS[language]
     model_name = config['name']
     dataset_name = config['dataset']
     batch_size = config['batch_size']
+    
+    print(f"\n{'='*50}")
+    print(f"🚀 Entraînement du modèle: {language.upper()}")
+    print(f"📊 Dataset: {dataset_name}")
+    print(f"🤖 Modèle: {model_name}")
+    print(f"{'='*50}\n")
     
     tokenized_dataset, tokenizer = load_and_prepare_data(
         dataset_name, 
@@ -28,19 +33,6 @@ def train_model(language='english', use_lora=True):
     
     print(f"🤖 Chargement du modèle: {model_name}")
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-    
-    if use_lora and DEVICE == 'cuda':
-        print("🔧 Application de LoRA")
-        lora_config = LoraConfig(
-            task_type=TaskType.SEQ_2_SEQ_LM,
-            r=8,
-            lora_alpha=32,
-            target_modules=["q_proj", "v_proj"],
-            lora_dropout=0.05,
-            bias="none",
-        )
-        model = get_peft_model(model, lora_config)
-        model.print_trainable_parameters()
     
     output_dir = os.path.join(MODELS_DIR, f"{language}_finetuned")
     
@@ -53,7 +45,7 @@ def train_model(language='english', use_lora=True):
         per_device_eval_batch_size=batch_size,
         weight_decay=0.01,
         save_total_limit=2,
-        num_train_epochs=3,
+        num_train_epochs=2,
         predict_with_generate=True,
         fp16=torch.cuda.is_available(),
         push_to_hub=False,
@@ -63,6 +55,7 @@ def train_model(language='english', use_lora=True):
         load_best_model_at_end=True,
         metric_for_best_model="eval_loss",
         greater_is_better=False,
+        remove_unused_columns=False,
     )
     
     trainer = Seq2SeqTrainer(
@@ -81,6 +74,10 @@ def train_model(language='english', use_lora=True):
     tokenizer.save_pretrained(output_dir)
     print(f"✅ Modèle sauvegardé dans: {output_dir}")
     
+    print("📊 Évaluation sur le test set...")
+    test_results = trainer.evaluate(tokenized_dataset["test"])
+    print(f"Test Loss: {test_results['eval_loss']:.4f}")
+    
     return trainer, tokenizer
 
 if __name__ == "__main__":
@@ -89,4 +86,4 @@ if __name__ == "__main__":
     parser.add_argument('--no-lora', action='store_true')
     args = parser.parse_args()
     
-    train_model(args.language, use_lora=not args.no_lora)
+    train_model(args.language, use_lora=False)
