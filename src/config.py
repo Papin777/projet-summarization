@@ -15,7 +15,7 @@ MODELS = {
         'name': 'moussaKam/barthez',
         'max_length': 512,
         'batch_size': 2 if torch.cuda.is_available() else 1,
-        'dataset': 'mlsum',
+        'dataset': 'orange_sum',
         'language': 'fr'
     }
 }

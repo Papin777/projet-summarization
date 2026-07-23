@@ -6,60 +6,103 @@ import os
 from config import DATA_DIR
 
 def load_and_prepare_data(dataset_name, model_name, max_length=512, max_target=128):
+    """Charge et prépare les données avec OrangeSum pour le français"""
+    
     print(f"📚 Chargement du dataset: {dataset_name}")
     
-    try:
-        if dataset_name == 'samsum':
-            dataset = load_dataset("samsum", trust_remote_code=True)
+    if dataset_name == 'orange_sum':
+        try:
+            print("📥 Chargement de OrangeSum via GEM...")
+            dataset = load_dataset('GEM/OrangeSum')
+            text_field = 'text'
+            summary_field = 'summary'
+            print("✅ OrangeSum chargé avec succès")
+        except Exception as e:
+            print(f"❌ Erreur: {e}")
+            print("📥 Création d'un dataset de démonstration...")
+            from datasets import Dataset
+            import pandas as pd
+            data = {
+                'text': [
+                    "Le président français a annoncé un nouveau plan de relance économique de 100 milliards d'euros.",
+                    "La France investit massivement dans la transition écologique et le numérique."
+                ],
+                'summary': [
+                    "Plan de relance économique de 100 milliards d'euros.",
+                    "Investissement dans la transition écologique et le numérique."
+                ]
+            }
+            df = pd.DataFrame(data)
+            dataset = Dataset.from_pandas(df)
+            text_field = 'text'
+            summary_field = 'summary'
+            print("✅ Dataset de démonstration créé")
+    
+    elif dataset_name == 'samsum':
+        try:
+            print("📥 Chargement de SAMSum via knkarthick/samsum...")
+            dataset = load_dataset("knkarthick/samsum")
             text_field = 'dialogue'
             summary_field = 'summary'
-        elif dataset_name == 'orange_sum':
-            print("⚠️ OrangeSum n'est plus disponible. Utilisation de MLSUM.")
-            dataset = load_dataset("mlsum", "fr", trust_remote_code=True)
-            text_field = 'text'
-            summary_field = 'summary'
-        elif dataset_name == 'mlsum':
-            dataset = load_dataset("mlsum", "fr", trust_remote_code=True)
-            text_field = 'text'
-            summary_field = 'summary'
-        else:
-            raise ValueError(f"Dataset {dataset_name} non supporté")
-    except Exception as e:
-        print(f"❌ Erreur: {e}")
-        print("📥 Création d'un dataset de démonstration...")
-        from datasets import Dataset
-        import pandas as pd
-        if dataset_name == 'samsum':
+            print("✅ SAMSum chargé avec succès")
+        except Exception as e:
+            print(f"❌ Erreur: {e}")
+            print("📥 Création d'un dataset de démonstration...")
+            from datasets import Dataset
+            import pandas as pd
             data = {
-                'dialogue': ["Amanda: I can't come to the meeting tomorrow.\nJohn: That's okay. We can reschedule.\nAmanda: Thursday works for me.\nJohn: How about 2 PM?\nAmanda: Perfect.", "Sarah: Did you finish the report?\nMike: Almost, I need one more day.\nSarah: Okay, by Friday.\nMike: Will do!"],
-                'summary': ["Amanda and John reschedule their meeting to Thursday at 2 PM.", "Mike needs one more day to finish the report."]
+                'dialogue': [
+                    "Amanda: I can't come to the meeting tomorrow.\nJohn: That's okay. We can reschedule.\nAmanda: Thursday works for me.\nJohn: How about 2 PM?\nAmanda: Perfect.",
+                    "Sarah: Did you finish the report?\nMike: Almost, I need one more day.\nSarah: Okay, by Friday.\nMike: Will do!"
+                ],
+                'summary': [
+                    "Amanda and John reschedule their meeting to Thursday at 2 PM.",
+                    "Mike needs one more day to finish the report."
+                ]
             }
-        else:
-            data = {
-                'text': ["Le président français a annoncé un nouveau plan de relance économique.", "La France investit 100 milliards d'euros dans la transition écologique."],
-                'summary': ["Nouveau plan de relance économique.", "Investissement massif dans la transition écologique."]
-            }
-        df = pd.DataFrame(data)
-        dataset = Dataset.from_pandas(df)
-        text_field = 'dialogue' if dataset_name == 'samsum' else 'text'
-        summary_field = 'summary'
-        print("✅ Dataset de démonstration créé")
+            df = pd.DataFrame(data)
+            dataset = Dataset.from_pandas(df)
+            text_field = 'dialogue'
+            summary_field = 'summary'
+            print("✅ Dataset de démonstration créé")
+    
+    else:
+        raise ValueError(f"Dataset {dataset_name} non supporté")
     
     if 'train' not in dataset:
         dataset = dataset.train_test_split(test_size=0.2)
     
     print(f"✅ Dataset: {len(dataset['train'])} entraînement, {len(dataset['test'])} test")
+    
+    print(f"📥 Chargement du tokenizer: {model_name}")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     
     def preprocess_function(examples):
-        inputs = tokenizer(examples[text_field], max_length=max_length, truncation=True, padding='max_length')
-        with tokenizer.as_target_tokenizer():
-            labels = tokenizer(examples[summary_field], max_length=max_target, truncation=True, padding='max_length')
+        inputs = tokenizer(
+            examples[text_field],
+            max_length=max_length,
+            truncation=True,
+            padding='max_length'
+        )
+        labels = tokenizer(
+            examples[summary_field],
+            max_length=max_target,
+            truncation=True,
+            padding='max_length'
+        )
         inputs['labels'] = labels['input_ids']
         return inputs
     
-    columns_to_remove = [col for col in dataset['train'].column_names if col not in ['input_ids', 'attention_mask', 'labels']]
-    tokenized_dataset = dataset.map(preprocess_function, batched=True, remove_columns=columns_to_remove)
+    train_cols = dataset['train'].column_names
+    columns_to_remove = [col for col in train_cols if col not in ['input_ids', 'attention_mask', 'labels']]
+    
+    tokenized_dataset = dataset.map(
+        preprocess_function,
+        batched=True,
+        remove_columns=columns_to_remove
+    )
+    
+    print("✅ Prétraitement terminé")
     return tokenized_dataset, tokenizer
 
 def save_metrics(metrics, filename):
