@@ -3,91 +3,39 @@ from datasets import load_dataset
 from transformers import AutoTokenizer
 import json
 import os
-from config import DATA_DIR
 
 def load_and_prepare_data(dataset_name, model_name, max_length=512, max_target=128):
-    """Charge et prépare les données"""
+    """Charge et prépare les données - VERSION AVEC VRAIS DATASETS"""
     
     print(f"📚 Chargement du dataset: {dataset_name}")
     
+    # ===== VRAI DATASET SAMSum (anglais) =====
     if dataset_name == 'samsum':
-        try:
-            print("📥 Chargement de SAMSum...")
-            dataset = load_dataset("knkarthick/samsum")
-            text_field = 'dialogue'
-            summary_field = 'summary'
-            print("✅ SAMSum chargé avec succès")
-        except Exception as e:
-            print(f"❌ Erreur: {e}")
-            from datasets import Dataset
-            import pandas as pd
-            data = {
-                'dialogue': [
-                    "Amanda: I can't come to the meeting tomorrow.\nJohn: That's okay. We can reschedule.\nAmanda: Thursday works for me.\nJohn: How about 2 PM?\nAmanda: Perfect.",
-                    "Sarah: Did you finish the report?\nMike: Almost, I need one more day."
-                ],
-                'summary': [
-                    "Amanda and John reschedule their meeting to Thursday at 2 PM.",
-                    "Mike needs one more day to finish the report."
-                ]
-            }
-            df = pd.DataFrame(data)
-            dataset = Dataset.from_pandas(df)
-            text_field = 'dialogue'
-            summary_field = 'summary'
-            print("✅ Dataset de démonstration créé")
+        print("📥 Chargement du VRAI dataset SAMSum (format Parquet)...")
+        dataset = load_dataset("parquet", data_files={
+            "train": "hf://datasets/Samsung/samsum/samsum/samsum-train.parquet",
+            "test": "hf://datasets/Samsung/samsum/samsum/samsum-test.parquet",
+            "validation": "hf://datasets/Samsung/samsum/samsum/samsum-validation.parquet"
+        })
+        text_field = 'dialogue'
+        summary_field = 'summary'
+        print(f"✅ SAMSum chargé: {len(dataset['train'])} entraînement, {len(dataset['test'])} test")
     
+    # ===== VRAI DATASET OrangeSum (français) =====
     elif dataset_name == 'orange_sum':
-        try:
-            print("📥 Tentative avec GEM/OrangeSum...")
-            dataset = load_dataset("GEM/OrangeSum")
-            text_field = 'text'
-            summary_field = 'summary'
-            print("✅ OrangeSum chargé via GEM")
-        except Exception as e:
-            print(f"❌ Erreur GEM: {e}")
-            try:
-                print("📥 Tentative avec orange_sum...")
-                dataset = load_dataset("orange_sum", "abstract")
-                text_field = 'text'
-                summary_field = 'summary'
-                print("✅ OrangeSum chargé")
-            except Exception as e2:
-                print(f"❌ Erreur: {e2}")
-                print("📥 Utilisation de MLSUM...")
-                try:
-                    dataset = load_dataset("mlsum", "fr")
-                    text_field = 'text'
-                    summary_field = 'summary'
-                    print("✅ MLSUM chargé")
-                except Exception as e3:
-                    print(f"❌ Erreur MLSUM: {e3}")
-                    from datasets import Dataset
-                    import pandas as pd
-                    data = {
-                        'text': [
-                            "Le président français a annoncé un nouveau plan de relance économique de 100 milliards d'euros.",
-                            "La France investit massivement dans la transition écologique."
-                        ],
-                        'summary': [
-                            "Plan de relance économique de 100 milliards d'euros.",
-                            "Investissement dans la transition écologique."
-                        ]
-                    }
-                    df = pd.DataFrame(data)
-                    dataset = Dataset.from_pandas(df)
-                    text_field = 'text'
-                    summary_field = 'summary'
-                    print("✅ Dataset de démonstration créé")
+        print("📥 Chargement du VRAI dataset OrangeSum (format Parquet)...")
+        # Charger le fichier Parquet
+        dataset = load_dataset("parquet", data_files="hf://datasets/krm/modified-orangeSum/data/train-00000-of-00001-f75513f3be8c97f0.parquet")
+        # Diviser en train/test (80/20)
+        dataset = dataset["train"].train_test_split(test_size=0.2, seed=42)
+        text_field = 'text'
+        summary_field = 'summary'
+        print(f"✅ OrangeSum chargé: {len(dataset['train'])} entraînement, {len(dataset['test'])} test")
     
     else:
         raise ValueError(f"Dataset {dataset_name} non supporté")
     
-    if 'train' not in dataset:
-        dataset = dataset.train_test_split(test_size=0.2)
-    
-    print(f"✅ Dataset: {len(dataset['train'])} entraînement, {len(dataset['test'])} test")
-    
+    # Tokenizer
     print(f"📥 Chargement du tokenizer: {model_name}")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     
@@ -107,8 +55,8 @@ def load_and_prepare_data(dataset_name, model_name, max_length=512, max_target=1
         inputs['labels'] = labels['input_ids']
         return inputs
     
-    train_cols = dataset['train'].column_names
-    columns_to_remove = [col for col in train_cols if col not in ['input_ids', 'attention_mask', 'labels']]
+    # Prétraitement
+    columns_to_remove = [col for col in dataset['train'].column_names if col not in ['input_ids', 'attention_mask', 'labels']]
     
     tokenized_dataset = dataset.map(
         preprocess_function,
