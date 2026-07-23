@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+
+# Environnements virtuels
+venv/
+env/
+ENV/
+
+# Modèles (trop lourds pour GitHub)
+models/
+results_*/
+*.pt
+*.pth
+*.safetensors
+*.ckpt
+
+# Données
+data/
+*.csv
+*.json
+*.pkl
+
+# Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Colab
+*.colab
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
